@@ -23,7 +23,12 @@ const Login = () => {
       const response = await axios.post('http://localhost:5000/api/auth/login', formData, {
         withCredentials: true,
       });
+<<<<<<< HEAD
       if (response.data) {
+=======
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+>>>>>>> 24656c3 (frontend V 1.3)
         navigate('/dashboard');
       }
     } catch (error) {

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< HEAD
 import axios from 'axios';
+=======
+import api from '../../utils/axios';
+>>>>>>> 24656c3 (frontend V 1.3)
 
 const InvestorDashboard = () => {
   const [investorData, setInvestorData] = useState(null);
@@ -11,12 +15,17 @@ const InvestorDashboard = () => {
     const fetchData = async () => {
       try {
         const [investorResponse, offeringsResponse] = await Promise.all([
+<<<<<<< HEAD
           axios.get('http://localhost:5000/api/investor/profile', {
             withCredentials: true,
           }),
           axios.get('http://localhost:5000/api/investor/offerings', {
             withCredentials: true,
           }),
+=======
+          api.get('/investor/profile'),
+          api.get('/investor/offerings'),
+>>>>>>> 24656c3 (frontend V 1.3)
         ]);
 
         setInvestorData(investorResponse.data);

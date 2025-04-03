@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< HEAD
 import axios from 'axios';
+=======
+import api from '../../utils/axios';
+>>>>>>> 24656c3 (frontend V 1.3)
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
@@ -9,9 +13,13 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
+<<<<<<< HEAD
         const response = await axios.get('http://localhost:5000/api/admin/users', {
           withCredentials: true,
         });
+=======
+        const response = await api.get('/admin/users');
+>>>>>>> 24656c3 (frontend V 1.3)
         setUsers(response.data);
         setLoading(false);
       } catch (err) {
