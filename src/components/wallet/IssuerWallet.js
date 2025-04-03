@@ -7,7 +7,6 @@ const IssuerWallet = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isDarkMode, setIsDarkMode] = useState(
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -22,16 +21,24 @@ const IssuerWallet = () => {
   });
   const [sendStatus, setSendStatus] = useState(null);
 
-  useEffect(() => {
-    fetchWalletData();
-  }, []);
-
   const fetchWalletData = async () => {
     try {
       setLoading(true);
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      
       const response = await axios.get('http://localhost:5000/api/wallet', {
-        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
+      
       setWalletData(response.data);
       
       // Fetch balance and transactions if wallet exists
@@ -47,38 +54,35 @@ const IssuerWallet = () => {
       console.error('Error fetching wallet data:', error);
       
       if (error.response) {
-        if (error.response.status === 404) {
-          // Wallet not found, but not an error
-          setWalletData(null);
-          setLoading(false);
-        } else if (error.response.status === 401) {
+        if (error.response.status === 401) {
           setError('Authentication error. Please sign in again.');
-          setLoading(false);
         } else if (error.response.status === 403) {
           setError('You do not have permission to access this wallet. Issuer role required.');
-          setLoading(false);
-        } else if (error.response.status === 500) {
-          // Server error but we still want to allow creating a wallet
-          console.warn('Server error but continuing to wallet creation screen');
-          setWalletData(null);
-          setLoading(false);
         } else {
           setError(`Error: ${error.response.data?.message || 'Unknown error'}`);
-          setLoading(false);
         }
       } else {
         setError('Failed to connect to server. Please check your connection.');
-        setLoading(false);
       }
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchWalletData();
+  }, []);
+
   const fetchBalanceData = async (address) => {
     try {
-      const response = await axios.get('http://localhost:5000/api/wallet/balance', {
-        withCredentials: true,
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const balanceResponse = await axios.get('http://localhost:5000/api/wallet/balance', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
-      setBalanceData(response.data);
+      setBalanceData(balanceResponse.data);
     } catch (error) {
       console.error('Error fetching balance data:', error);
       // Don't set error state, just log it
@@ -87,30 +91,18 @@ const IssuerWallet = () => {
 
   const fetchTransactions = async (address) => {
     try {
-      const response = await axios.get('http://localhost:5000/api/wallet/transactions', {
-        withCredentials: true,
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const txResponse = await axios.get('http://localhost:5000/api/wallet/transactions', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
-      setTransactions(response.data.transactions || []);
+      setTransactions(txResponse.data.transactions || []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
       // Don't set error state, just log it
-    }
-  };
-
-  const createWallet = async () => {
-    try {
-      setIsCreatingWallet(true);
-      const response = await axios.post('http://localhost:5000/api/wallet/create', {}, {
-        withCredentials: true,
-      });
-      setWalletData(response.data.wallet);
-      setIsCreatingWallet(false);
-      // Refresh the data
-      fetchWalletData();
-    } catch (error) {
-      console.error('Error creating wallet:', error);
-      setError('Failed to create wallet');
-      setIsCreatingWallet(false);
     }
   };
 
@@ -125,9 +117,17 @@ const IssuerWallet = () => {
   const handleSendTokens = async (e) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setSendStatus({ status: 'error', message: 'Authentication required. Please log in again.' });
+        return;
+      }
+      
       setSendStatus({ status: 'loading', message: 'Sending transaction...' });
-      const response = await axios.post('http://localhost:5000/api/wallet/send', sendForm, {
-        withCredentials: true,
+      await axios.post('http://localhost:5000/api/wallet/send', sendForm, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       setSendStatus({ status: 'success', message: 'Transaction submitted successfully!' });
       // Reset form
@@ -138,9 +138,11 @@ const IssuerWallet = () => {
         chain: 'polygon-mumbai'
       });
       // Refresh transactions after a short delay
-      setTimeout(() => {
-        fetchTransactions(walletData.address);
-      }, 3000);
+      if (walletData?.address) {
+        setTimeout(() => {
+          fetchTransactions(walletData.address);
+        }, 3000);
+      }
     } catch (error) {
       console.error('Error sending tokens:', error);
       setSendStatus({ 
@@ -172,17 +174,11 @@ const IssuerWallet = () => {
 
         {!walletData ? (
           <div className="flex flex-col items-center justify-center bg-gradient-to-b from-blue-600 to-purple-600 rounded-xl p-10 text-white shadow-2xl">
-            <h2 className="text-2xl font-bold mb-4">Create Your Issuer Wallet</h2>
+            <h2 className="text-2xl font-bold mb-4">Setting Up Your Wallet</h2>
             <p className="text-center mb-6">
-              Set up your EVM-compatible wallet to securely manage your digital assets on the blockchain.
+              Your wallet is being created automatically. Please wait a moment...
             </p>
-            <button
-              onClick={createWallet}
-              disabled={isCreatingWallet}
-              className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors duration-300 shadow-lg"
-            >
-              {isCreatingWallet ? 'Creating...' : 'Create Wallet'}
-            </button>
+            <div className="w-16 h-16 border-t-4 border-blue-200 border-solid rounded-full animate-spin"></div>
           </div>
         ) : (
           <>

@@ -1,292 +1,326 @@
 import React, { useState, useEffect } from 'react';
-<<<<<<< HEAD
 import axios from 'axios';
 import IssuerWallet from '../wallet/IssuerWallet';
-=======
-import api from '../../utils/axios';
->>>>>>> 24656c3 (frontend V 1.3)
 
 const IssuerDashboard = () => {
-  const [issuerData, setIssuerData] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-<<<<<<< HEAD
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
-    const fetchIssuerData = async () => {
+    const fetchUserData = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/issuer/dashboard', {
-          withCredentials: true,
+        setLoading(true);
+        
+        // Get the token from localStorage
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('Not authenticated. Please log in again.');
+          setLoading(false);
+          return;
+        }
+        
+        const response = await axios.get('http://localhost:5000/api/issuer/profile', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
-        setIssuerData(response.data);
+        
+        setUserData(response.data);
         setLoading(false);
       } catch (err) {
-        setError('Failed to fetch issuer data');
+        setError('Failed to fetch user data. Please try again later.');
         setLoading(false);
+        console.error('Error fetching issuer profile:', err);
       }
     };
 
-    fetchIssuerData();
+    fetchUserData();
   }, []);
 
-=======
-  const [creatingWallet, setCreatingWallet] = useState(false);
-
-  const fetchIssuerData = async () => {
-    try {
-      const response = await api.get('/issuer/dashboard');
-      setIssuerData(response.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching issuer data:', err);
-      setError(err.response?.data?.message || 'Failed to fetch issuer data');
-      setLoading(false);
-    }
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
   };
 
-  useEffect(() => {
-    fetchIssuerData();
-  }, []);
-
-  const handleCreateWallet = async () => {
-    try {
-      setCreatingWallet(true);
-      await api.post('/issuer/wallet');
-      // Refresh issuer data to show the new wallet
-      await fetchIssuerData();
-    } catch (err) {
-      console.error('Error creating wallet:', err);
-      setError(err.response?.data?.message || 'Failed to create wallet');
-    } finally {
-      setCreatingWallet(false);
-    }
-  };
-
->>>>>>> 24656c3 (frontend V 1.3)
   if (loading) return <div className="text-center mt-8">Loading...</div>;
   if (error) return <div className="text-red-500 text-center mt-8">{error}</div>;
-  if (!issuerData) return <div className="text-center mt-8">No data available</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Issuer Dashboard</h1>
-
-<<<<<<< HEAD
-      {/* Tabs */}
-      <div className="mb-8">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'overview'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('wallet')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'wallet'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Wallet
-            </button>
-          </nav>
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'overview' && (
-        <>
-          {/* Company Information */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Company Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-600">Company Name</p>
-                <p className="text-lg font-medium">{issuerData.company_name}</p>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Sidebar */}
+          <div className="w-full md:w-1/4">
+            <div className="bg-white shadow rounded-lg p-4">
+              <div className="text-center mb-6">
+                <div className="h-24 w-24 rounded-full bg-blue-500 flex items-center justify-center text-white text-3xl font-bold mx-auto">
+                  {userData?.profile?.company_name?.charAt(0) || 'I'}
+                </div>
+                <h2 className="mt-2 font-bold text-xl">{userData?.profile?.company_name || 'Issuer'}</h2>
+                <p className="text-gray-600 text-sm">{userData?.email}</p>
+                <div className="mt-2 inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                  Verified Issuer
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Registration Number</p>
-                <p className="text-lg font-medium">{issuerData.company_registration_number}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Jurisdiction</p>
-                <p className="text-lg font-medium">{issuerData.jurisdiction}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Verification Status</p>
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                  ${issuerData.verification_status ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                  {issuerData.verification_status ? 'Verified' : 'Pending'}
-                </span>
+              <div className="border-t border-gray-100 pt-4">
+                <nav>
+                  <button
+                    onClick={() => handleTabChange('dashboard')}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center ${
+                      activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="material-icons-outlined mr-3">dashboard</span>
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('wallet')}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center ${
+                      activeTab === 'wallet' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="material-icons-outlined mr-3">account_balance_wallet</span>
+                    Wallet
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('offerings')}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center ${
+                      activeTab === 'offerings' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="material-icons-outlined mr-3">storefront</span>
+                    Offerings
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('profile')}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center ${
+                      activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="material-icons-outlined mr-3">person</span>
+                    Profile
+                  </button>
+                </nav>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <button className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition-colors">
-              Create New Offering
-            </button>
-            <button className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors">
-              View Active Offerings
-            </button>
-            <button 
-              className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors"
-              onClick={() => setActiveTab('wallet')}
-            >
-              Manage Wallet
-            </button>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-            <div className="space-y-4">
-              <div className="border-l-4 border-indigo-500 pl-4">
-                <p className="text-sm text-gray-600">Today</p>
-                <p className="text-base">Document verification completed</p>
+          {/* Main Content */}
+          <div className="w-full md:w-3/4">
+            {activeTab === 'dashboard' && (
+              <div className="bg-white shadow rounded-lg p-6">
+                <h1 className="text-2xl font-bold mb-6">Issuer Dashboard</h1>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-blue-600">Active Offerings</h3>
+                    <p className="text-3xl font-bold mt-2">2</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-green-600">Total Raised</h3>
+                    <p className="text-3xl font-bold mt-2">$250,000</p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-purple-600">Investors</h3>
+                    <p className="text-3xl font-bold mt-2">42</p>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-6">
+                  <h2 className="text-xl font-bold mb-4">Recent Activity</h2>
+                  <ul className="space-y-3">
+                    <li className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex justify-between">
+                        <span>New investment in Project Alpha</span>
+                        <span className="text-sm text-gray-500">2 hours ago</span>
+                      </div>
+                      <p className="text-green-600 font-semibold">+$10,000</p>
+                    </li>
+                    <li className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex justify-between">
+                        <span>Document verification approved</span>
+                        <span className="text-sm text-gray-500">Yesterday</span>
+                      </div>
+                      <p className="text-blue-600">Project Beta prospectus</p>
+                    </li>
+                    <li className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex justify-between">
+                        <span>New offering created</span>
+                        <span className="text-sm text-gray-500">3 days ago</span>
+                      </div>
+                      <p className="text-blue-600">Project Beta</p>
+                    </li>
+                  </ul>
+                </div>
               </div>
-              <div className="border-l-4 border-green-500 pl-4">
-                <p className="text-sm text-gray-600">Yesterday</p>
-                <p className="text-base">New investor application received</p>
-              </div>
-              <div className="border-l-4 border-blue-500 pl-4">
-                <p className="text-sm text-gray-600">2 days ago</p>
-                <p className="text-base">Offering documents updated</p>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+            )}
 
-      {activeTab === 'wallet' && (
-        <IssuerWallet />
-      )}
-=======
-      {/* Company Information */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Company Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <p className="text-sm text-gray-600">Company Name</p>
-            <p className="text-lg font-medium">{issuerData.company_name}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Registration Number</p>
-            <p className="text-lg font-medium">{issuerData.company_registration_number}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Jurisdiction</p>
-            <p className="text-lg font-medium">{issuerData.jurisdiction}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Verification Status</p>
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-              ${issuerData.verification_status ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-              {issuerData.verification_status ? 'Verified' : 'Pending'}
-            </span>
-          </div>
-        </div>
-      </div>
+            {activeTab === 'wallet' && (
+              <div>
+                <IssuerWallet />
+              </div>
+            )}
 
-      {/* Wallet Information */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Solana Wallet</h2>
-          {!issuerData.wallet && (
-            <button
-              onClick={handleCreateWallet}
-              disabled={creatingWallet}
-              className={`px-4 py-2 rounded-md text-white ${
-                creatingWallet
-                  ? 'bg-indigo-400 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700'
-              }`}
-            >
-              {creatingWallet ? 'Creating Wallet...' : 'Create Wallet'}
-            </button>
-          )}
-        </div>
-        {issuerData.wallet ? (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Wallet Address</p>
-              <p className="text-lg font-medium font-mono break-all">{issuerData.wallet.address}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Created At</p>
-              <p className="text-lg font-medium">
-                {new Date(issuerData.wallet.created_at).toLocaleString()}
-              </p>
-            </div>
-            {issuerData.wallet.balance && !issuerData.wallet.balance.error ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(issuerData.wallet.balance).map(([chain, tokens]) => (
-                  <div key={chain} className="border rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-2">{chain}</h3>
-                    <div className="space-y-2">
-                      {Object.entries(tokens).map(([token, balance]) => (
-                        <div key={token} className="flex justify-between">
-                          <span className="text-gray-600">{token.toUpperCase()}</span>
-                          <span className="font-medium">{balance}</span>
-                        </div>
-                      ))}
+            {activeTab === 'offerings' && (
+              <div className="bg-white shadow rounded-lg p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h1 className="text-2xl font-bold">My Offerings</h1>
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
+                    + New Offering
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="py-3 px-4 text-left">Offering</th>
+                        <th className="py-3 px-4 text-left">Status</th>
+                        <th className="py-3 px-4 text-left">Target</th>
+                        <th className="py-3 px-4 text-left">Raised</th>
+                        <th className="py-3 px-4 text-left">Investors</th>
+                        <th className="py-3 px-4 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold">Project Alpha</div>
+                          <div className="text-sm text-gray-500">Created 2 months ago</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                            Active
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">$500,000</td>
+                        <td className="py-3 px-4">$230,000</td>
+                        <td className="py-3 px-4">27</td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <button className="text-blue-600 hover:text-blue-800">
+                              View
+                            </button>
+                            <button className="text-blue-600 hover:text-blue-800">
+                              Edit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold">Project Beta</div>
+                          <div className="text-sm text-gray-500">Created 5 days ago</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                            Active
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">$350,000</td>
+                        <td className="py-3 px-4">$20,000</td>
+                        <td className="py-3 px-4">15</td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <button className="text-blue-600 hover:text-blue-800">
+                              View
+                            </button>
+                            <button className="text-blue-600 hover:text-blue-800">
+                              Edit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold">Project Gamma</div>
+                          <div className="text-sm text-gray-500">Created 6 months ago</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
+                            Completed
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">$200,000</td>
+                        <td className="py-3 px-4">$200,000</td>
+                        <td className="py-3 px-4">31</td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <button className="text-blue-600 hover:text-blue-800">
+                              View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'profile' && (
+              <div className="bg-white shadow rounded-lg p-6">
+                <h1 className="text-2xl font-bold mb-6">Issuer Profile</h1>
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold mb-4">Company Information</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Company Name</p>
+                      <p className="font-medium">{userData?.profile?.company_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Jurisdiction</p>
+                      <p className="font-medium">{userData?.profile?.jurisdiction}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Registration Number</p>
+                      <p className="font-medium">{userData?.profile?.registration_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Address</p>
+                      <p className="font-medium">{userData?.profile?.address}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-yellow-600">
-                {issuerData.wallet.balance?.error || 'Unable to fetch wallet balance'}
+                </div>
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold mb-4">Contact Information</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Email</p>
+                      <p className="font-medium">{userData?.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Phone</p>
+                      <p className="font-medium">{userData?.profile?.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Website</p>
+                      <p className="font-medium">{userData?.profile?.website}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold mb-4">Verification Status</h2>
+                  <div className="flex items-center">
+                    <div className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full mr-3">
+                      Verified
+                    </div>
+                    <p className="text-sm text-gray-500">Last verified on {new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="flex justify-between">
+                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
+                      Edit Profile
+                    </button>
+                    <button className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg shadow">
+                      Download Verification Documents
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        ) : (
-          <div className="text-gray-500">No wallet has been created yet.</div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <button className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition-colors">
-          Create New Offering
-        </button>
-        <button className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors">
-          View Active Offerings
-        </button>
-        <button className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors">
-          Manage Documents
-        </button>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-        <div className="space-y-4">
-          {/* This would be populated with actual activity data */}
-          <div className="border-l-4 border-indigo-500 pl-4">
-            <p className="text-sm text-gray-600">Today</p>
-            <p className="text-base">Document verification completed</p>
-          </div>
-          <div className="border-l-4 border-green-500 pl-4">
-            <p className="text-sm text-gray-600">Yesterday</p>
-            <p className="text-base">New investor application received</p>
-          </div>
-          <div className="border-l-4 border-blue-500 pl-4">
-            <p className="text-sm text-gray-600">2 days ago</p>
-            <p className="text-base">Offering documents updated</p>
-          </div>
         </div>
       </div>
->>>>>>> 24656c3 (frontend V 1.3)
     </div>
   );
 };

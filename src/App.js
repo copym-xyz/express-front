@@ -10,6 +10,7 @@ import InvestorRegister from './components/auth/InvestorRegister';
 import IssuerRegister from './components/auth/IssuerRegister';
 import Home from './components/Home';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import GoogleLoginCallback from './utils/GoogleLoginCallback';
 
 const PrivateRoute = ({ element: Element, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -52,6 +53,19 @@ function App() {
             <Route path="/investor/register" element={<InvestorRegister />} />
             <Route path="/issuer/login" element={<IssuerLogin />} />
             <Route path="/issuer/register" element={<IssuerRegister />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            
+            {/* Google OAuth callback routes */}
+            <Route path="/auth/google/callback" element={<GoogleLoginCallback />} />
+            <Route path="/investor/auth/google/callback" element={<GoogleLoginCallback />} />
+            <Route path="/issuer/auth/google/callback" element={<GoogleLoginCallback />} />
+            <Route path="/admin/auth/google/callback" element={<GoogleLoginCallback />} />
+            
+            {/* Twitter OAuth callback routes */}
+            <Route path="/auth/twitter/callback" element={<GoogleLoginCallback />} />
+            <Route path="/investor/auth/twitter/callback" element={<GoogleLoginCallback />} />
+            <Route path="/issuer/auth/twitter/callback" element={<GoogleLoginCallback />} />
+            <Route path="/admin/auth/twitter/callback" element={<GoogleLoginCallback />} />
 
             {/* Protected Routes */}
             <Route
