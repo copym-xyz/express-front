@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/axios';
 import { motion } from 'framer-motion';
 import AdminWallets from './AdminWallets';
+import AdminKYCVerifications from './AdminKYCVerifications';
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
@@ -13,14 +14,13 @@ const AdminDashboard = () => {
     activeUsers: 0
   });
   const [activeTab, setActiveTab] = useState('users');
+  const [selectedUserId, setSelectedUserId] = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:5000/api/admin/users', {
-          withCredentials: true
-        });
+        const response = await api.get('/admin/users');
         setUsers(response.data);
         
         // Calculate stats
@@ -49,10 +49,7 @@ const AdminDashboard = () => {
 
   const handleVerification = async (userId, isVerified) => {
     try {
-      await axios.post(`http://localhost:5000/api/admin/verify/${userId}`, 
-        { isVerified }, 
-        { withCredentials: true }
-      );
+      await api.post(`/admin/verify/${userId}`, { isVerified });
       
       // Update the user in the local state
       setUsers(users.map(user => {
@@ -88,6 +85,12 @@ const AdminDashboard = () => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // Function to handle viewing KYC details for a specific user
+  const handleViewKYC = (userId) => {
+    setSelectedUserId(userId);
+    setActiveTab('kyc');
   };
 
   if (loading && activeTab === 'users') return <div className="text-center mt-8">Loading...</div>;
@@ -173,6 +176,21 @@ const AdminDashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
               </svg>
               Wallets
+            </div>
+          </button>
+          <button
+            className={`py-4 px-6 border-b-2 font-medium text-sm ${
+              activeTab === 'kyc'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('kyc')}
+          >
+            <div className="flex items-center">
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              KYC Verifications
             </div>
           </button>
         </nav>
@@ -269,6 +287,14 @@ const AdminDashboard = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {user.roles && user.roles.some(role => role.role === 'ISSUER') && (
+                          <button 
+                            onClick={() => handleViewKYC(user.id)}
+                            className="text-blue-600 hover:text-blue-900 mr-2"
+                          >
+                            View KYC
+                          </button>
+                        )}
                         {user.profile && (
                           user.profile.is_verified ? (
                             <button 
@@ -296,6 +322,8 @@ const AdminDashboard = () => {
         )}
         
         {activeTab === 'wallets' && <AdminWallets />}
+        
+        {activeTab === 'kyc' && <AdminKYCVerifications userId={selectedUserId} />}
       </motion.div>
     </div>
   );

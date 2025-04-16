@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/axios';
 
 const InvestorDashboard = () => {
   const [userData, setUserData] = useState(null);
@@ -13,14 +13,10 @@ const InvestorDashboard = () => {
       try {
         setLoading(true);
         // Fetch user profile data
-        const profileResponse = await axios.get('http://localhost:5000/api/investor/profile', {
-          withCredentials: true,
-        });
+        const profileResponse = await api.get('/investor/profile');
         
         // Fetch available offerings
-        const offeringsResponse = await axios.get('http://localhost:5000/api/investor/offerings', {
-          withCredentials: true,
-        });
+        const offeringsResponse = await api.get('/investor/offerings');
         
         setUserData(profileResponse.data);
         setOfferings(offeringsResponse.data.offerings || []);

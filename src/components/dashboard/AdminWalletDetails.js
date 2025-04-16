@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/axios';
 import { motion } from 'framer-motion';
 
 const AdminWalletDetails = ({ walletId, onBack }) => {
@@ -17,9 +17,7 @@ const AdminWalletDetails = ({ walletId, onBack }) => {
   const fetchWalletDetails = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`http://localhost:5000/api/admin/wallets/${walletId}`, {
-        withCredentials: true
-      });
+      const response = await api.get(`/admin/wallets/${walletId}`);
       setWallet(response.data);
       
       // Once we have the wallet, fetch balance and transactions
@@ -38,9 +36,7 @@ const AdminWalletDetails = ({ walletId, onBack }) => {
   
   const fetchBalanceData = async (address) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/admin/wallets/${walletId}/balance`, {
-        withCredentials: true
-      });
+      const response = await api.get(`/admin/wallets/${walletId}/balance`);
       
       if (response.data && response.data.balances) {
         setBalanceData(response.data.balances);
@@ -53,12 +49,10 @@ const AdminWalletDetails = ({ walletId, onBack }) => {
   
   const fetchTransactions = async (address) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/admin/wallets/${walletId}/transactions`, {
-        withCredentials: true
-      });
+      const response = await api.get(`/admin/wallets/${walletId}/transactions`);
       
-      if (response.data && Array.isArray(response.data)) {
-        setTransactions(response.data);
+      if (response.data && response.data.transactions) {
+        setTransactions(response.data.transactions);
       }
     } catch (err) {
       console.error('Error fetching wallet transactions:', err);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/axios';
 import IssuerWallet from '../wallet/IssuerWallet';
+import IssuerKYC from '../kyc/IssuerKYC';
 
 const IssuerDashboard = () => {
   const [userData, setUserData] = useState(null);
@@ -21,11 +22,7 @@ const IssuerDashboard = () => {
           return;
         }
         
-        const response = await axios.get('http://localhost:5000/api/issuer/profile', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const response = await api.get('/issuer/profile');
         
         setUserData(response.data);
         setLoading(false);
@@ -82,6 +79,15 @@ const IssuerDashboard = () => {
                   >
                     <span className="material-icons-outlined mr-3">account_balance_wallet</span>
                     Wallet
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('kyc')}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center ${
+                      activeTab === 'kyc' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="material-icons-outlined mr-3">verified_user</span>
+                    KYC Verification
                   </button>
                   <button
                     onClick={() => handleTabChange('offerings')}
@@ -158,6 +164,10 @@ const IssuerDashboard = () => {
               <div>
                 <IssuerWallet />
               </div>
+            )}
+
+            {activeTab === 'kyc' && (
+              <IssuerKYC />
             )}
 
             {activeTab === 'offerings' && (
@@ -258,64 +268,8 @@ const IssuerDashboard = () => {
 
             {activeTab === 'profile' && (
               <div className="bg-white shadow rounded-lg p-6">
-                <h1 className="text-2xl font-bold mb-6">Issuer Profile</h1>
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold mb-4">Company Information</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Company Name</p>
-                      <p className="font-medium">{userData?.profile?.company_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Jurisdiction</p>
-                      <p className="font-medium">{userData?.profile?.jurisdiction}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Registration Number</p>
-                      <p className="font-medium">{userData?.profile?.registration_number}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Address</p>
-                      <p className="font-medium">{userData?.profile?.address}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold mb-4">Contact Information</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium">{userData?.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="font-medium">{userData?.profile?.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Website</p>
-                      <p className="font-medium">{userData?.profile?.website}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold mb-4">Verification Status</h2>
-                  <div className="flex items-center">
-                    <div className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full mr-3">
-                      Verified
-                    </div>
-                    <p className="text-sm text-gray-500">Last verified on {new Date().toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <div className="border-t border-gray-100 pt-6">
-                  <div className="flex justify-between">
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
-                      Edit Profile
-                    </button>
-                    <button className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg shadow">
-                      Download Verification Documents
-                    </button>
-                  </div>
-                </div>
+                <h1 className="text-2xl font-bold mb-6">My Profile</h1>
+                <p>Profile management coming soon.</p>
               </div>
             )}
           </div>
@@ -325,4 +279,4 @@ const IssuerDashboard = () => {
   );
 };
 
-export default IssuerDashboard; 
+export default IssuerDashboard;

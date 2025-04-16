@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../utils/axios';
 import { motion } from 'framer-motion';
 import AdminWalletDetails from './AdminWalletDetails';
 
@@ -23,9 +23,7 @@ const AdminWallets = () => {
   const fetchWallets = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/admin/wallets', {
-        withCredentials: true
-      });
+      const response = await api.get('/admin/wallets');
       setWallets(response.data);
       setLoading(false);
     } catch (err) {
