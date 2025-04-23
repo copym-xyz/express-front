@@ -11,6 +11,7 @@ import IssuerRegister from './components/auth/IssuerRegister';
 import Home from './components/Home';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import GoogleLoginCallback from './utils/GoogleLoginCallback';
+import KYCVerificationPage from './pages/KYCVerificationPage';
 
 const PrivateRoute = ({ element: Element, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -92,6 +93,17 @@ function App() {
                 <PrivateRoute
                   element={<InvestorDashboard />}
                   allowedRoles={['INVESTOR']}
+                />
+              }
+            />
+            
+            {/* KYC Verification Page - accessible to both INVESTOR and ISSUER */}
+            <Route
+              path="/kyc-verification"
+              element={
+                <PrivateRoute
+                  element={<KYCVerificationPage />}
+                  allowedRoles={['INVESTOR', 'ISSUER']}
                 />
               }
             />

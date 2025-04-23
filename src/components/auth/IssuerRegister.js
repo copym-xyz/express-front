@@ -12,6 +12,7 @@ const IssuerRegister = () => {
     password: '',
     confirmPassword: '',
     company_name: '',
+    company_registration_number: '',
     jurisdiction: '',
   });
   const [error, setError] = useState('');
@@ -51,6 +52,7 @@ const IssuerRegister = () => {
         email: formData.email,
         password: formData.password,
         company_name: formData.company_name,
+        company_registration_number: formData.company_registration_number,
         jurisdiction: formData.jurisdiction,
         role: 'ISSUER',
       });
@@ -172,6 +174,19 @@ const IssuerRegister = () => {
                 className="appearance-none rounded-md relative block w-full px-3 py-2 bg-gray-700 border border-gray-600 placeholder-gray-400 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Company name"
                 value={formData.company_name}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="company_registration_number" className="sr-only">Registration Number</label>
+              <input
+                id="company_registration_number"
+                name="company_registration_number"
+                type="text"
+                required
+                className="appearance-none rounded-md relative block w-full px-3 py-2 bg-gray-700 border border-gray-600 placeholder-gray-400 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Company Registration Number"
+                value={formData.company_registration_number}
                 onChange={handleChange}
               />
             </div>

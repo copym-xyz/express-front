@@ -3,13 +3,17 @@ import api from '../../utils/axios'
 
 function AdminKYCVerifications({ userId = null }) {
   const [verifications, setVerifications] = useState([])
+  const [personalInfo, setPersonalInfo] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedVerification, setSelectedVerification] = useState(null)
   const [detailedView, setDetailedView] = useState(false)
   const [selectedUserId, setSelectedUserId] = useState(userId || '')
   const [users, setUsers] = useState([])
-  const [dataSource, setDataSource] = useState('sumsub') // 'local' or 'sumsub'
+  const [dataSource, setDataSource] = useState('local') // Changed default to 'local' instead of 'sumsub'
+  const [isLoadingPersonalInfo, setIsLoadingPersonalInfo] = useState(false)
+  const [baseUrl, setBaseUrl] = useState('')
+  const [token, setToken] = useState('')
 
   useEffect(() => {
     // Update selectedUserId if the prop changes
@@ -33,6 +37,30 @@ function AdminKYCVerifications({ userId = null }) {
         : '/admin/kyc-verifications'
       
       const response = await api.get(url)
+      
+      // If we have verification data, fetch personal info for each applicant
+      if (response.data && response.data.length > 0) {
+        const personalInfoMap = {}
+        
+        // Create an array of promises for fetching personal info
+        const promises = response.data.map(async (verification) => {
+          if (verification.applicant_id) {
+            try {
+              const infoResponse = await api.get(`/admin/kyc-personal-info/${verification.applicant_id}`)
+              if (infoResponse.data) {
+                personalInfoMap[verification.applicant_id] = infoResponse.data
+              }
+            } catch (err) {
+              console.error(`Error fetching personal info for ${verification.applicant_id}:`, err)
+            }
+          }
+          return verification
+        })
+        
+        await Promise.all(promises)
+        setPersonalInfo(personalInfoMap)
+      }
+      
       setVerifications(response.data)
       setLoading(false)
     } catch (err) {
@@ -75,6 +103,22 @@ function AdminKYCVerifications({ userId = null }) {
       
       if (dataSource === 'local') {
         const response = await api.get(`/admin/kyc-verifications/${verification.id}`)
+        
+        // Try to fetch personal info if not already loaded
+        if (verification.applicant_id && !personalInfo[verification.applicant_id]) {
+          try {
+            const infoResponse = await api.get(`/admin/kyc-personal-info/${verification.applicant_id}`)
+            if (infoResponse.data) {
+              setPersonalInfo(prev => ({
+                ...prev,
+                [verification.applicant_id]: infoResponse.data
+              }))
+            }
+          } catch (err) {
+            console.error(`Error fetching personal info for ${verification.applicant_id}:`, err)
+          }
+        }
+        
         setSelectedVerification(response.data)
       } else {
         // Fetch the detailed applicant data from Sumsub
@@ -125,6 +169,41 @@ function AdminKYCVerifications({ userId = null }) {
     }
   }
 
+  const fetchPersonalInfo = async (applicantId) => {
+    try {
+      setIsLoadingPersonalInfo(true);
+      const response = await api.get(`/admin/kyc-personal-info/${applicantId}`);
+      
+      if (response.data) {
+        setPersonalInfo(prev => ({
+          ...prev,
+          [applicantId]: response.data
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching personal info:', error);
+      setError('Failed to fetch personal info. ' + (error.response?.data?.message || error.message));
+    } finally {
+      setIsLoadingPersonalInfo(false);
+    }
+  };
+
+  const handleGenerateDID = async (issuerId) => {
+    try {
+      const response = await api.post(`/admin/issuers/${issuerId}/generate-did`);
+      if (response.data && response.data.success) {
+        // Refresh the verification data to get the updated DID
+        handleViewDetails(selectedVerification);
+        console.log('DID generated successfully:', response.data.did);
+      } else {
+        setError(response.data?.message || 'Failed to generate DID');
+      }
+    } catch (error) {
+      console.error('Error generating DID:', error);
+      setError('Failed to generate DID: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
   if (loading) return <div className="text-center mt-8">Loading...</div>
   if (error) return <div className="text-red-500 text-center mt-8">{error}</div>
 
@@ -140,8 +219,8 @@ function AdminKYCVerifications({ userId = null }) {
                 value={dataSource}
                 onChange={(e) => setDataSource(e.target.value)}
               >
-                <option value="sumsub">Sumsub API</option>
                 <option value="local">Local Database</option>
+                <option value="sumsub">Sumsub API</option>
               </select>
               <select
                 className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
@@ -178,7 +257,7 @@ function AdminKYCVerifications({ userId = null }) {
                       Applicant ID
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
+                      Personal Info
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -193,26 +272,25 @@ function AdminKYCVerifications({ userId = null }) {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {verifications.map((verification) => {
-                    // Handle different data structures based on source
-                    const userData = dataSource === 'local' 
-                      ? verification.user
-                      : verification.user || {};
-                      
-                    const applicantId = dataSource === 'local'
-                      ? verification.applicantId
-                      : verification.id;
-                      
-                    const status = dataSource === 'local'
-                      ? verification.reviewStatus
-                      : verification.review?.reviewStatus || 'init';
-                      
-                    const createdAt = dataSource === 'local'
-                      ? verification.createdAt
-                      : verification.createdAt;
-                      
-                    const type = dataSource === 'local'
-                      ? verification.type
-                      : verification.type || 'individual';
+                    // Extract common properties based on data source
+                    let applicantId, type, status, createdAt, userData
+                    
+                    if (dataSource === 'local') {
+                      applicantId = verification.applicant_id
+                      type = verification.type || 'KYC'
+                      status = verification.processing_status || verification.review_status || 'pending'
+                      createdAt = verification.created_at
+                      userData = verification.users
+                    } else {
+                      applicantId = verification.id
+                      type = verification.levelName || 'KYC'
+                      status = verification.reviewStatus || 'pending'
+                      createdAt = verification.createdAt || verification.created
+                      userData = null
+                    }
+                    
+                    // Get personal info for local database records
+                    const personInfo = personalInfo[applicantId] || {}
                       
                     return (
                       <tr key={applicantId}>
@@ -220,7 +298,7 @@ function AdminKYCVerifications({ userId = null }) {
                           <div className="flex items-center">
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">
-                                {userData?.email || verification.externalUserId || 'Unknown User'}
+                                {userData?.email || verification.externalUserId || personInfo?.email || 'Unknown User'}
                               </div>
                               <div className="text-sm text-gray-500">
                                 {userData?.first_name} {userData?.last_name}
@@ -231,11 +309,22 @@ function AdminKYCVerifications({ userId = null }) {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{applicantId}</div>
                           <div className="text-xs text-gray-500">
-                            External ID: {verification.externalUserId || 'N/A'}
+                            External ID: {verification.external_user_id || verification.externalUserId || 'N/A'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{type}</div>
+                          {dataSource === 'local' && personInfo ? (
+                            <div>
+                              <div className="text-sm text-gray-900">
+                                {personInfo.full_name || `${personInfo.first_name || ''} ${personInfo.last_name || ''}`.trim() || 'N/A'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {personInfo.nationality || personInfo.country || 'N/A'}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-900">{type}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(status)}`}>
@@ -245,7 +334,7 @@ function AdminKYCVerifications({ userId = null }) {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{formatDate(createdAt)}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <button
                             onClick={() => handleViewDetails(verification)}
                             className="text-blue-600 hover:text-blue-900"
@@ -263,17 +352,15 @@ function AdminKYCVerifications({ userId = null }) {
         </>
       ) : (
         <div className="p-6">
-          <div className="flex items-center mb-6">
-            <button
-              onClick={handleBackToList}
-              className="flex items-center text-blue-600 hover:text-blue-900"
-            >
-              <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to List
-            </button>
-          </div>
+          <button
+            onClick={handleBackToList}
+            className="mb-6 flex items-center text-blue-600 hover:text-blue-900"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to List
+          </button>
           
           {selectedVerification && (
             <div>
@@ -285,10 +372,23 @@ function AdminKYCVerifications({ userId = null }) {
                   <div className="space-y-2">
                     {dataSource === 'local' ? (
                       <>
-                        <p><span className="font-medium">Applicant ID:</span> {selectedVerification.applicantId}</p>
-                        <p><span className="font-medium">External User ID:</span> {selectedVerification.externalUserId}</p>
-                        <p><span className="font-medium">User Email:</span> {selectedVerification.user?.email || 'N/A'}</p>
-                        <p><span className="font-medium">User Name:</span> {selectedVerification.user?.first_name} {selectedVerification.user?.last_name}</p>
+                        <p><span className="font-medium">Applicant ID:</span> {selectedVerification.applicant_id}</p>
+                        <p><span className="font-medium">External User ID:</span> {selectedVerification.external_user_id}</p>
+                        <p><span className="font-medium">User Email:</span> {selectedVerification.users?.email || 'N/A'}</p>
+                        <p><span className="font-medium">User Name:</span> {selectedVerification.users?.first_name} {selectedVerification.users?.last_name}</p>
+                        
+                        {/* Display personal info if available */}
+                        {personalInfo[selectedVerification.applicant_id] && (
+                          <>
+                            <h4 className="text-md font-semibold mt-4 mb-2">Personal Information</h4>
+                            <p><span className="font-medium">Full Name:</span> {personalInfo[selectedVerification.applicant_id].full_name || 'N/A'}</p>
+                            <p><span className="font-medium">Date of Birth:</span> {formatDate(personalInfo[selectedVerification.applicant_id].date_of_birth)}</p>
+                            <p><span className="font-medium">Nationality:</span> {personalInfo[selectedVerification.applicant_id].nationality || 'N/A'}</p>
+                            <p><span className="font-medium">ID Number:</span> {personalInfo[selectedVerification.applicant_id].id_number || 'N/A'}</p>
+                            <p><span className="font-medium">Email:</span> {personalInfo[selectedVerification.applicant_id].email || 'N/A'}</p>
+                            <p><span className="font-medium">Phone:</span> {personalInfo[selectedVerification.applicant_id].phone || 'N/A'}</p>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
@@ -308,106 +408,132 @@ function AdminKYCVerifications({ userId = null }) {
                     {dataSource === 'local' ? (
                       <>
                         <p>
-                          <span className="font-medium">Status:</span> 
-                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.reviewStatus)}`}>
-                            {selectedVerification.reviewStatus}
+                          <span className="font-medium">Status:</span>{' '}
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.processing_status || selectedVerification.review_status)}`}>
+                            {selectedVerification.processing_status || selectedVerification.review_status || 'pending'}
                           </span>
                         </p>
                         <p>
-                          <span className="font-medium">Result:</span> 
-                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.reviewResult)}`}>
-                            {selectedVerification.reviewResult || 'N/A'}
+                          <span className="font-medium">Result:</span>{' '}
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.review_result)}`}>
+                            {selectedVerification.review_result || 'N/A'}
                           </span>
                         </p>
-                        <p><span className="font-medium">Created:</span> {formatDate(selectedVerification.createdAt)}</p>
-                        <p><span className="font-medium">Type:</span> {selectedVerification.type}</p>
-                        {selectedVerification.parsedRawData?.levelName && (
-                          <p><span className="font-medium">Level:</span> {selectedVerification.parsedRawData.levelName}</p>
+                        <p><span className="font-medium">Created At:</span> {formatDate(selectedVerification.created_at)}</p>
+                        <p><span className="font-medium">Updated At:</span> {formatDate(selectedVerification.updated_at)}</p>
+                        
+                        {selectedVerification.inspection_id && (
+                          <p><span className="font-medium">Inspection ID:</span> {selectedVerification.inspection_id}</p>
+                        )}
+                        
+                        {selectedVerification.error_message && (
+                          <div className="mt-4 bg-red-50 border border-red-200 p-3 rounded-md">
+                            <p className="text-sm text-red-700 font-medium">Error Message:</p>
+                            <p className="text-sm text-red-600">{selectedVerification.error_message}</p>
+                          </div>
                         )}
                       </>
                     ) : (
                       <>
                         <p>
-                          <span className="font-medium">Status:</span> 
-                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.review?.reviewStatus)}`}>
-                            {selectedVerification.review?.reviewStatus || 'N/A'}
+                          <span className="font-medium">Status:</span>{' '}
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.reviewStatus)}`}>
+                            {selectedVerification.reviewStatus || 'pending'}
                           </span>
                         </p>
                         <p>
-                          <span className="font-medium">Result:</span> 
-                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.review?.reviewResult?.reviewAnswer)}`}>
-                            {selectedVerification.review?.reviewResult?.reviewAnswer || 'N/A'}
+                          <span className="font-medium">Review Answer:</span>{' '}
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(selectedVerification.reviewResult?.reviewAnswer)}`}>
+                            {selectedVerification.reviewResult?.reviewAnswer || 'N/A'}
                           </span>
                         </p>
-                        <p><span className="font-medium">Created:</span> {formatDate(selectedVerification.createdAt)}</p>
-                        <p><span className="font-medium">Level:</span> {selectedVerification.review?.levelName || 'N/A'}</p>
+                        <p><span className="font-medium">Created At:</span> {formatDate(selectedVerification.createdAt)}</p>
+                        <p><span className="font-medium">Level:</span> {selectedVerification.levelName || 'default'}</p>
                       </>
                     )}
                   </div>
                 </div>
               </div>
               
-              {/* Rejection reasons */}
-              {dataSource === 'local' ? (
-                selectedVerification.parsedRawData?.rejectLabels && 
-                selectedVerification.parsedRawData.rejectLabels.length > 0 && (
-                  <div className="bg-red-50 p-4 rounded-lg mb-6">
-                    <h3 className="text-lg font-semibold text-red-700 mb-3">Rejection Reasons</h3>
-                    <ul className="list-disc pl-5 text-red-700">
-                      {selectedVerification.parsedRawData.rejectLabels.map((label, index) => (
-                        <li key={index}>{label}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )
-              ) : (
-                selectedVerification.review?.reviewResult?.rejectLabels &&
-                selectedVerification.review.reviewResult.rejectLabels.length > 0 && (
-                  <div className="bg-red-50 p-4 rounded-lg mb-6">
-                    <h3 className="text-lg font-semibold text-red-700 mb-3">Rejection Reasons</h3>
-                    <ul className="list-disc pl-5 text-red-700">
-                      {selectedVerification.review.reviewResult.rejectLabels.map((label, index) => (
-                        <li key={index}>{label}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )
-              )}
-              
-              {/* Document information */}
-              {dataSource === 'sumsub' && selectedVerification.info?.idDocs && (
-                <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                  <h3 className="text-lg font-semibold mb-3">Identity Documents</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedVerification.info.idDocs.map((doc, index) => (
-                      <div key={index} className="border p-3 rounded">
-                        <p><span className="font-medium">Type:</span> {doc.idDocType}</p>
-                        <p><span className="font-medium">Country:</span> {doc.country}</p>
-                        {doc.imageIds && doc.imageIds.length > 0 && (
-                          <div className="mt-2">
-                            <p className="font-medium">Images:</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {doc.imageIds.map((imageId, idx) => (
-                                <div key={idx} className="border p-1 rounded bg-gray-100">
-                                  <p className="text-xs">{imageId}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+              {/* Additional verification details for both data sources */}
+              {dataSource === 'local' && selectedVerification.raw_data && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-3">Raw Verification Data</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg overflow-x-auto">
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {typeof selectedVerification.raw_data === 'string' 
+                        ? selectedVerification.raw_data 
+                        : JSON.stringify(selectedVerification.raw_data, null, 2)}
+                    </pre>
                   </div>
                 </div>
               )}
               
-              {/* Raw data */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3">Raw Response Data</h3>
-                <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto text-xs h-96 overflow-y-auto">
-                  {JSON.stringify(dataSource === 'local' ? selectedVerification.parsedRawData : selectedVerification, null, 2)}
-                </pre>
-              </div>
+              {dataSource === 'sumsub' && selectedVerification.info && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-3">Additional Information</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg overflow-x-auto">
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {JSON.stringify(selectedVerification.info, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {selectedVerification && selectedVerification.applicant_id && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-3">Issuer Information</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    {/* Display issuer information including DID if available */}
+                    {selectedVerification.issuer ? (
+                      <>
+                        <p>
+                          <span className="font-medium">Verification Status:</span> 
+                          <span className={`ml-1 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            selectedVerification.issuer.verification_status 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {selectedVerification.issuer.verification_status ? 'Verified' : 'Pending'}
+                          </span>
+                        </p>
+                        {selectedVerification.issuer.verification_date && (
+                          <p><span className="font-medium">Verification Date:</span> {formatDate(selectedVerification.issuer.verification_date)}</p>
+                        )}
+                        
+                        {/* Display DID information */}
+                        <div className="mt-4">
+                          <p className="font-medium">Decentralized Identifier (DID):</p>
+                          {selectedVerification.issuer.did ? (
+                            <div className="mt-1">
+                              <div className="bg-blue-50 p-2 rounded border border-blue-200 break-all">
+                                <code className="text-sm text-blue-800">{selectedVerification.issuer.did}</code>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                This DID is linked to the issuer's custodial ETH wallet and can be used for issuing verifiable credentials.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-1">
+                              <p className="text-sm text-gray-500">No DID generated yet</p>
+                              {selectedVerification.issuer.verification_status && (
+                                <button 
+                                  className="mt-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                  onClick={() => handleGenerateDID(selectedVerification.issuer.id)}
+                                >
+                                  Generate DID
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-gray-500">No issuer information available</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

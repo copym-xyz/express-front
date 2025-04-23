@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../utils/axios';
+import KYCVerificationButton from '../kyc/KYCVerificationButton';
 
 const InvestorDashboard = () => {
   const [userData, setUserData] = useState(null);
@@ -7,6 +9,21 @@ const InvestorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [kycStatus, setKycStatus] = useState('pending');
+  const [kycMessage, setKycMessage] = useState('');
+  const location = useLocation();
+
+  useEffect(() => {
+    // Check if KYC was just completed
+    if (location.state?.kycCompleted) {
+      setKycStatus('completed');
+      setKycMessage('KYC verification completed successfully!');
+      // Show the success message for 5 seconds
+      setTimeout(() => {
+        setKycMessage('');
+      }, 5000);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -17,6 +34,13 @@ const InvestorDashboard = () => {
         
         // Fetch available offerings
         const offeringsResponse = await api.get('/investor/offerings');
+        
+        // Check KYC status
+        if (profileResponse.data?.kyc_status) {
+          setKycStatus(profileResponse.data.kyc_status);
+        } else if (profileResponse.data?.profile?.kyc_verified) {
+          setKycStatus('completed');
+        }
         
         setUserData(profileResponse.data);
         setOfferings(offeringsResponse.data.offerings || []);
@@ -37,6 +61,20 @@ const InvestorDashboard = () => {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="container mx-auto px-4 py-8">
+        {kycMessage && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 relative">
+            <span className="block sm:inline">{kycMessage}</span>
+            <button 
+              className="absolute top-0 bottom-0 right-0 px-4 py-3"
+              onClick={() => setKycMessage('')}
+            >
+              <svg className="fill-current h-6 w-6 text-green-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <title>Close</title>
+                <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+              </svg>
+            </button>
+          </div>
+        )}
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar */}
           <div className="w-full md:w-1/4">
@@ -51,6 +89,16 @@ const InvestorDashboard = () => {
                 <p className="text-gray-600 text-sm">{userData?.email}</p>
                 <div className="mt-2 inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
                   Verified Investor
+                </div>
+                
+                {/* Add KYC Verification button */}
+                <div className="mt-3">
+                  <KYCVerificationButton 
+                    kycStatus={kycStatus}
+                    returnUrl="/investor/dashboard"
+                    buttonText={kycStatus === 'completed' ? 'KYC Verified' : 'KYC Verification'}
+                    className="w-full justify-center"
+                  />
                 </div>
               </div>
               <div className="border-t border-gray-100 pt-4">
