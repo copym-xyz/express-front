@@ -23,8 +23,16 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Keep credentials mode for authentication cookies
   withCredentials: true,
+  // Add timeout to prevent hanging requests
+  timeout: 10000
 });
+
+// Log configuration in development
+if (process.env.NODE_ENV !== 'production') {
+  console.log('API base URL:', getBaseUrl());
+}
 
 // Add a request interceptor to add the JWT token to all requests
 api.interceptors.request.use(
@@ -44,6 +52,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Log network errors in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('API Error:', error.message, error.config?.url);
+    }
+    
     if (error.response?.status === 401) {
       // Clear token and redirect to login
       localStorage.removeItem('token');
