@@ -246,7 +246,9 @@ const AdminDashboard = () => {
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
-                              {user.profile ? `${user.profile.first_name} ${user.profile.last_name}` : 'No Name'}
+                              {user.profile ? 
+                                `${user.profile.first_name} ${user.profile.last_name}` : 
+                                (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : 'No Name')}
                             </div>
                           </div>
                         </div>
