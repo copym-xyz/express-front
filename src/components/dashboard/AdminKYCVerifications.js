@@ -243,7 +243,7 @@ function AdminKYCVerifications({ userId = null }) {
             </div>
           </div>
           
-          {verifications.length === 0 ? (
+            {verifications.length === 0 ? (
             <div className="p-8 text-center">
               <div className="mb-4">
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,7 +268,7 @@ function AdminKYCVerifications({ userId = null }) {
                 </button>
               </div>
             </div>
-          ) : (
+            ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -371,7 +371,7 @@ function AdminKYCVerifications({ userId = null }) {
                 </tbody>
               </table>
             </div>
-          )}
+            )}
         </>
       ) : (
         <div className="p-6">

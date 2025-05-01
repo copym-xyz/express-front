@@ -5,6 +5,7 @@ const IssuerWallet = () => {
   const [walletData, setWalletData] = useState(null);
   const [balanceData, setBalanceData] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [nfts, setNfts] = useState({ dbNfts: [], crossmintNfts: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -45,7 +46,8 @@ const IssuerWallet = () => {
       if (response.data && response.data.address) {
         await Promise.all([
           fetchBalanceData(response.data.address),
-          fetchTransactions(response.data.address)
+          fetchTransactions(response.data.address),
+          fetchNFTs(response.data.address)
         ]);
       }
       
@@ -106,6 +108,23 @@ const IssuerWallet = () => {
     }
   };
 
+  const fetchNFTs = async (address) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const nftResponse = await axios.get('http://localhost:5000/api/wallet/nfts', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setNfts(nftResponse.data || { dbNfts: [], crossmintNfts: [], total: 0 });
+    } catch (error) {
+      console.error('Error fetching NFTs:', error);
+      // Don't set error state, just log it
+    }
+  };
+
   const handleSendFormChange = (e) => {
     const { name, value } = e.target;
     setSendForm(prev => ({
@@ -154,6 +173,180 @@ const IssuerWallet = () => {
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
+  };
+
+  // Helper function for placeholder images
+  const getPlaceholderImage = (id) => {
+    // Generate a colorful placeholder based on the ID
+    const colors = [
+      'bg-blue-500',
+      'bg-purple-500',
+      'bg-green-500',
+      'bg-yellow-500',
+      'bg-red-500',
+      'bg-pink-500',
+      'bg-indigo-500'
+    ];
+    
+    // Make sure id is a string and not undefined/null
+    const stringId = String(id || '');
+    
+    // Get a consistent color even if the id is an empty string
+    const colorIndex = stringId.length > 0 
+      ? stringId.charCodeAt(0) % colors.length 
+      : Math.floor(Math.random() * colors.length);
+      
+    return colors[colorIndex];
+  };
+
+  // Helper function to format status badges
+  const renderStatusBadge = (status) => {
+    const statusColors = {
+      'ACTIVE': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      'PENDING': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      'EXPIRED': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      'REVOKED': 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
+  };
+
+  // NFTs tab content
+  const renderNFTsTab = () => {
+    if (loading) {
+      return (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading NFTs and credentials...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-8">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error loading NFTs: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        </div>
+      );
+    }
+
+    const totalNfts = nfts.dbNfts.length + nfts.crossmintNfts.length;
+
+    if (totalNfts === 0) {
+      return (
+        <div className="text-center py-16">
+          <div className="mx-auto h-24 w-24 text-yellow-500">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No NFTs or Credentials Found</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Once you issue or receive credentials, they will appear here.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {nfts.dbNfts.map(nft => (
+            <div key={nft.id} className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300`}>
+              {nft.metadata?.image || nft.image_url ? (
+                <img 
+                  src={nft.metadata?.image || nft.image_url} 
+                  alt={nft.metadata?.name || 'NFT'} 
+                  className="w-full h-48 object-cover"
+                />
+              ) : (
+                <div className={`w-full h-48 flex items-center justify-center ${getPlaceholderImage(nft.id)}`}>
+                  <span className="text-white text-2xl font-bold">
+                    {(nft.metadata?.name || nft.credentialId || 'NFT').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-lg">
+                    {nft.metadata?.name || `Credential #${nft.id}`}
+                  </h3>
+                  {renderStatusBadge(nft.status)}
+                </div>
+                <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                  {nft.metadata?.description || `Type: ${nft.type}`}
+                </p>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {nft.issuedDate && (
+                    <p className="mb-1">Issued: {new Date(nft.issuedDate).toLocaleDateString()}</p>
+                  )}
+                  {nft.contractAddress && (
+                    <p className="mb-1 truncate">
+                      Contract: {nft.contractAddress.substring(0, 10)}...
+                    </p>
+                  )}
+                  {nft.tokenId && (
+                    <p className="mb-1">Token ID: {nft.tokenId}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {/* Crossmint NFTs */}
+          {nfts.crossmintNfts.map(nft => (
+            <div key={nft.id || nft.tokenId} className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300`}>
+              {nft.image ? (
+                <img 
+                  src={nft.image} 
+                  alt={nft.name || 'NFT'} 
+                  className="w-full h-48 object-cover"
+                />
+              ) : (
+                <div className={`w-full h-48 flex items-center justify-center ${getPlaceholderImage(nft.id || nft.tokenId)}`}>
+                  <span className="text-white text-2xl font-bold">
+                    {(nft.name || 'NFT').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-lg">
+                    {nft.name || `NFT #${nft.tokenId || ''}`}
+                  </h3>
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    Crossmint
+                  </span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                  {nft.description || `From Crossmint`}
+                </p>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {nft.mintedAt && (
+                    <p className="mb-1">Minted: {new Date(nft.mintedAt).toLocaleDateString()}</p>
+                  )}
+                  {nft.contractAddress && (
+                    <p className="mb-1 truncate">
+                      Contract: {nft.contractAddress.substring(0, 10)}...
+                    </p>
+                  )}
+                  {nft.tokenId && (
+                    <p className="mb-1">Token ID: {nft.tokenId}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (loading) return <div className="text-center mt-8">Loading wallet...</div>;
@@ -259,6 +452,16 @@ const IssuerWallet = () => {
                     }`}
                   >
                     Transactions
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('nfts')}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'nfts'
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    NFTs & Credentials
                   </button>
                 </nav>
               </div>
@@ -464,6 +667,8 @@ const IssuerWallet = () => {
                   )}
                 </div>
               )}
+
+              {activeTab === 'nfts' && renderNFTsTab()}
             </div>
           </>
         )}

@@ -8,6 +8,8 @@ const IssuerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [issuingVC, setIssuingVC] = useState(false);
+  const [vcMessage, setVcMessage] = useState(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -40,6 +42,118 @@ const IssuerDashboard = () => {
     setActiveTab(tab);
   };
 
+  const handleIssueCredential = async () => {
+    try {
+      setIssuingVC(true);
+      setVcMessage(null);
+      
+      console.log('Starting credential issuance process');
+      
+      // Get token from localStorage to ensure it's fresh
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setVcMessage({
+          type: 'error',
+          text: 'Authentication required. Please log in again.'
+        });
+        return;
+      }
+      
+      // Call the backend API to issue the VC to the issuer's wallet
+      const response = await api.post('/issuer-vc', {}, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      console.log('Credential issuance response:', response.data);
+      
+      setVcMessage({
+        type: 'success',
+        text: `Credential successfully issued! Transaction ID: ${response.data.actionId || response.data.id}`
+      });
+    } catch (err) {
+      console.error('Error issuing VC:', err);
+      
+      if (err.response?.status === 401) {
+        // Handle authentication errors
+        localStorage.removeItem('token'); // Clear invalid token
+        setVcMessage({
+          type: 'error',
+          text: 'Authentication required. Please log in again.'
+        });
+      } else if (err.response?.status === 404) {
+        // Handle missing issuer profile
+        setVcMessage({
+          type: 'error',
+          text: 'Issuer profile not found. Please complete your profile setup.'
+        });
+      } else if (err.response?.status === 400 && err.response?.data?.message?.includes('wallet')) {
+        // Handle missing wallet
+        setVcMessage({
+          type: 'error',
+          text: 'You need to create a wallet first. Please visit the Wallet tab.'
+        });
+      } else if ((err.response?.status === 403 && err.response?.data?.message?.includes('verification')) ||
+                (err.response?.status === 400 && err.response?.data?.message?.includes('verified'))) {
+        // Handle verification issues - try to update verification status automatically
+        try {
+          setVcMessage({
+            type: 'warning',
+            text: 'Attempting to update verification status...'
+          });
+          
+          // Get token again to ensure it's in scope
+          const authToken = localStorage.getItem('token');
+          if (!authToken) {
+            setVcMessage({
+              type: 'error',
+              text: 'Authentication required. Please log in again.'
+            });
+            return;
+          }
+          
+          // Call the endpoint to force update verification status
+          await api.post('/issuer/update-verification', {}, {
+            headers: {
+              Authorization: `Bearer ${authToken}`
+            }
+          });
+          
+          // Try issuing the credential again after updating verification status
+          const retryResponse = await api.post('/issuer-vc', {}, {
+            headers: {
+              Authorization: `Bearer ${authToken}`
+            }
+          });
+          
+          console.log('Credential issuance retry response:', retryResponse.data);
+          
+          setVcMessage({
+            type: 'success',
+            text: `Credential successfully issued after verification update! Transaction ID: ${retryResponse.data.actionId || retryResponse.data.id}`
+          });
+          
+          return;
+        } catch (retryErr) {
+          console.error('Error during verification update and retry:', retryErr);
+          setVcMessage({
+            type: 'error',
+            text: 'Your account needs to be verified first. Please complete KYC verification.'
+          });
+        }
+      } else {
+        // Handle other errors
+        setVcMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Failed to issue credential. Please try again.'
+        });
+      }
+    } finally {
+      setIssuingVC(false);
+    }
+  };
+
   if (loading) return <div className="text-center mt-8">Loading...</div>;
   if (error) return <div className="text-red-500 text-center mt-8">{error}</div>;
 
@@ -68,8 +182,7 @@ const IssuerDashboard = () => {
                       activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="material-icons-outlined mr-3">dashboard</span>
-                    Dashboard
+                    <span className="material-icons-outlined mr-3">Dashboard</span>
                   </button>
                   <button
                     onClick={() => handleTabChange('wallet')}
@@ -77,8 +190,7 @@ const IssuerDashboard = () => {
                       activeTab === 'wallet' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="material-icons-outlined mr-3">account_balance_wallet</span>
-                    Wallet
+                    <span className="material-icons-outlined mr-3">Wallet</span>
                   </button>
                   <button
                     onClick={() => handleTabChange('kyc')}
@@ -86,8 +198,15 @@ const IssuerDashboard = () => {
                       activeTab === 'kyc' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="material-icons-outlined mr-3">verified_user</span>
-                    KYC Verification
+                    <span className="material-icons-outlined mr-3">KYC Verification</span>
+                  </button>
+                  <button
+                    onClick={handleIssueCredential}
+                    className={`w-full text-left px-4 py-2 rounded-lg mb-1 flex items-center text-blue-600 hover:bg-blue-50`}
+                    disabled={issuingVC}
+                  >
+                    <span className="material-icons-outlined mr-3">Issue Credential</span>
+                    {issuingVC && <span className="ml-auto text-xs">Processing...</span>}
                   </button>
                   <button
                     onClick={() => handleTabChange('offerings')}
@@ -95,8 +214,7 @@ const IssuerDashboard = () => {
                       activeTab === 'offerings' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="material-icons-outlined mr-3">storefront</span>
-                    Offerings
+                    <span className="material-icons-outlined mr-3">Storefront</span>
                   </button>
                   <button
                     onClick={() => handleTabChange('profile')}
@@ -104,11 +222,17 @@ const IssuerDashboard = () => {
                       activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="material-icons-outlined mr-3">person</span>
-                    Profile
+                    <span className="material-icons-outlined mr-3">Person</span>
                   </button>
                 </nav>
               </div>
+              
+              {/* VC Status Message */}
+              {vcMessage && (
+                <div className={`mt-4 p-3 rounded ${vcMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {vcMessage.text}
+                </div>
+              )}
             </div>
           </div>
 
