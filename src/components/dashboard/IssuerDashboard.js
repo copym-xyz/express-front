@@ -137,10 +137,10 @@ const IssuerDashboard = () => {
           return;
         } catch (retryErr) {
           console.error('Error during verification update and retry:', retryErr);
-          setVcMessage({
-            type: 'error',
-            text: 'Your account needs to be verified first. Please complete KYC verification.'
-          });
+        setVcMessage({
+          type: 'error',
+          text: 'Your account needs to be verified first. Please complete KYC verification.'
+        });
         }
       } else {
         // Handle other errors

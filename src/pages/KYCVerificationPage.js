@@ -1,215 +1,218 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/axios';
+import LoadingSpinner from '../components/LoadingSpinner';
 
-function KYCVerificationPage() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+// Import Sumsub WebSDK
+const snsWebSdk = window.snsWebSdk;
+
+const KYCVerificationPage = () => {
+  const { user, isAuthenticated, getToken } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sdkInstance, setSdkInstance] = useState(null);
-  const [verificationCompleted, setVerificationCompleted] = useState(false);
-  const returnUrl = location.state?.returnUrl || '/';
-  const userRole = user?.role?.toLowerCase() || 'investor';
+  const [ready, setReady] = useState(false);
+  const containerRef = useRef(null);
 
-  // Function to get access token from the backend
+  // Function to get a new access token from the backend
   const getAccessToken = async () => {
     try {
-      console.log('Requesting Sumsub token...');
-      const response = await api.post('/sumsub/token', {
-        userId: user.id,
-        levelName: 'id-and-liveness'
+      setIsLoading(true);
+      
+      // Check if user is authenticated
+      if (!user?.id) {
+        throw new Error('You must be logged in to access verification');
+      }
+      
+      const userId = user.id;
+      console.log('Getting access token for user:', userId);
+      
+      // Include authentication token in the request
+      const authToken = getToken ? await getToken() : localStorage.getItem('authToken');
+      
+      // Direct API call to backend with auth headers
+      const response = await axios.get(`/api/sumsub/token?userId=${userId}`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
       });
       
-      if (!response.data.token) {
-        throw new Error('Token not found in server response');
+      console.log('Token response:', response.data);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to get access token');
       }
+      
+      console.log('Access token received successfully');
       return response.data.token;
-    } catch (err) {
-      console.error('Error fetching Sumsub token:', err);
-      setError(`Failed to initialize verification: ${err.response?.data?.error || err.message}`);
+    } catch (error) {
+      console.error('Error getting access token:', error);
+      if (error.response?.status === 401) {
+        setError('Authentication failed. Please log in again.');
+      } else {
+        setError(`Failed to get access token: ${error.message || 'Unknown error'}`);
+      }
       return null;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Initialize the Sumsub SDK
+  // Initialize the Sumsub WebSDK
   const initSumsubSdk = async () => {
     try {
+      console.log('Initializing Sumsub SDK...');
       setIsLoading(true);
       setError(null);
 
-      // Get initial token
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error('Failed to get access token');
+      // Check if user is authenticated
+      if (!user?.id) {
+        throw new Error('You must be logged in to access verification');
+      }
+      
+      // Make sure the SDK is loaded
+      if (!window.snsWebSdk) {
+        console.error('Sumsub WebSDK not found in window object');
+        throw new Error('Sumsub WebSDK not loaded. Please refresh the page.');
       }
 
-      console.log('Initializing Sumsub SDK');
-      
-      // Check if SDK is loaded
-      const sdkObject = window.snsWebSdk;
-      if (!sdkObject) {
-        throw new Error('Sumsub SDK not loaded - global object not found');
+      // Make sure the container element exists - check if it's in the DOM
+      const containerElement = document.getElementById('sumsub-websdk-container');
+      if (!containerElement) {
+        console.error('Container element not found in DOM');
+        throw new Error('Container element not found. Please refresh the page.');
       }
       
+      console.log('Container found, getting access token...');
+      const accessToken = await getAccessToken();
+      
+      if (!accessToken) {
+        throw new Error('Failed to obtain access token');
+      }
+
+      console.log('Initializing Sumsub SDK with token');
+      
       // Initialize the WebSDK
-      const sdk = sdkObject
+      const webSdkInstance = window.snsWebSdk
         .init(accessToken, async () => {
-          // Token refresh callback
-          console.log('Refreshing Sumsub token...');
+          // Token refresh callback - will be called when token expires
+          console.log('Token expired, getting a new one...');
           return await getAccessToken();
         })
         .withConf({
-          lang: 'en'
+          lang: 'en',
+          uiConf: {
+            // Optional UI customization
+            customCssStr: ':root { --primary-color: #2563EB; }',
+          }
         })
         .withOptions({ 
           addViewportTag: false, 
           adaptIframeHeight: true
         })
-        .on('onError', (error) => {
+        .on('idCheck.stepCompleted', (payload) => {
+          console.log('Step completed:', payload);
+        })
+        .on('idCheck.onError', (error) => {
           console.error('Sumsub error:', error);
           setError(`Verification error: ${error.message || 'Unknown error'}`);
         })
+        .on('idCheck.applicantStatusChanged', (payload) => {
+          console.log('Applicant status changed:', payload);
+        })
         .onMessage((type, payload) => {
-          console.log('Sumsub message:', type, payload);
+          console.log('Message from Sumsub:', type, payload);
           
-          // Handle verification completion
-          if (type === 'idCheck.applicantStatus' && 
-              (payload.reviewStatus === 'completed' || payload.reviewStatus === 'approved' || 
-               type === 'idCheck.stepCompleted')) {
-            setVerificationCompleted(true);
-            
-            // After a short delay, redirect back to the return URL
-            setTimeout(() => {
-              navigate(returnUrl, { 
-                state: { 
-                  kycCompleted: true,
-                  kycStatus: 'completed' 
-                } 
-              });
-            }, 2000);
+          // Check for ready message
+          if (type === 'idCheck.onReady') {
+            setReady(true);
           }
         })
         .build();
 
-      setSdkInstance(sdk);
+      console.log('SDK built, launching...');
       
-      // Launch the SDK in the container
-      sdk.launch('#sumsub-websdk-container');
-      setIsLoading(false);
-    } catch (err) {
-      console.error('Error initializing Sumsub SDK:', err);
-      setError(`Failed to initialize verification: ${err.message || 'Unknown error'}`);
+      // Launch the WebSDK with the actual DOM element - try direct approach
+      webSdkInstance.launch('#sumsub-websdk-container');
+      setSdkInstance(webSdkInstance);
+      console.log('SDK launched');
+      
+    } catch (error) {
+      console.error('Error initializing Sumsub WebSDK:', error);
+      setError(`Failed to initialize verification: ${error.message || 'Unknown error'}`);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Load Sumsub SDK script
+  // Make sure DOM is fully loaded before initializing
   useEffect(() => {
-    // Clear any existing script first
-    const existingScript = document.getElementById('sumsub-sdk-script');
-    if (existingScript) {
-      existingScript.remove();
-    }
-
-    // Create and load the Sumsub WebSDK script
-    const script = document.createElement('script');
-    script.id = 'sumsub-sdk-script';
-    script.src = 'https://static.sumsub.com/idensic/static/sns-websdk-builder.js';
-    script.async = true;
-    script.onload = () => {
-      console.log('Sumsub SDK script loaded successfully');
+    if (document.readyState === 'complete') {
+      console.log('Document already complete');
+      initSumsubSdk();
+    } else {
+      console.log('Waiting for document to be ready...');
+      const handleReady = () => {
+        console.log('Document now ready');
       initSumsubSdk();
     };
-    script.onerror = (error) => {
-      console.error('Failed to load Sumsub SDK script:', error);
-      setError('Failed to load Sumsub SDK');
-      setIsLoading(false);
-    };
+      window.addEventListener('load', handleReady);
+      return () => window.removeEventListener('load', handleReady);
+    }
     
-    document.body.appendChild(script);
-
-    // Cleanup function
     return () => {
-      const scriptToRemove = document.getElementById('sumsub-sdk-script');
-      if (scriptToRemove) {
-        scriptToRemove.remove();
-      }
-      
       if (sdkInstance) {
         try {
-          sdkInstance.close();
-        } catch (err) {
-          console.error('Error closing Sumsub SDK:', err);
+          sdkInstance.destroy();
+        } catch (error) {
+          console.error('Error destroying Sumsub SDK:', error);
         }
       }
     };
-  }, []);
+  }, [user]); // Add user as a dependency to reinitialize when user changes
 
-  // Handle cancellation - go back to the return URL
-  const handleCancel = () => {
-    navigate(returnUrl);
-  };
+  // If not authenticated, show login prompt
+  if (!user?.id) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+          <h2 className="text-xl font-bold text-yellow-600 mb-4">Authentication Required</h2>
+          <p className="text-gray-700">You must be logged in to access verification.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Identity Verification</h1>
-              <button
-                onClick={handleCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="mt-2 text-gray-600">
-              Complete the verification process below to verify your identity.
-            </p>
-          </div>
-
-          <div className="p-6">
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">ID Verification</h1>
+      
+      {isLoading && <LoadingSpinner message="Loading verification..." />}
+      
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-                <div className="mt-2">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Verification Error</h2>
+          <p className="text-gray-700">{error}</p>
                   <button
-                    onClick={() => window.location.reload()}
-                    className="underline text-red-700"
+            onClick={initSumsubSdk}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Try Again
                   </button>
-                </div>
               </div>
             )}
             
-            {isLoading && (
-              <div className="flex justify-center items-center py-10">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-                <span className="ml-3">Loading verification module...</span>
-              </div>
-            )}
-            
-            {verificationCompleted && (
-              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                <p className="font-bold">Verification Completed Successfully!</p>
-                <p className="mt-1">Redirecting you back...</p>
-              </div>
-            )}
-            
+      <div className="bg-white rounded-xl shadow-md p-4">
+        {/* Note the ID here must match what you use in launch() */}
             <div 
               id="sumsub-websdk-container" 
-              className="w-full min-h-[650px] border border-gray-200 rounded-lg"
+          ref={containerRef}
+          className="border border-gray-200 rounded"
+          style={{ minHeight: '600px', display: 'block', width: '100%' }}
             ></div>
-          </div>
-        </div>
       </div>
     </div>
   );
-}
+};
 
 export default KYCVerificationPage; 

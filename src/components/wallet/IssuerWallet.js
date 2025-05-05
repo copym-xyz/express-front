@@ -118,6 +118,8 @@ const IssuerWallet = () => {
           Authorization: `Bearer ${token}`
         }
       });
+      
+      // Properly set NFTs based on the new response structure
       setNfts(nftResponse.data || { dbNfts: [], crossmintNfts: [], total: 0 });
     } catch (error) {
       console.error('Error fetching NFTs:', error);
@@ -237,7 +239,7 @@ const IssuerWallet = () => {
       );
     }
 
-    const totalNfts = nfts.dbNfts.length + nfts.crossmintNfts.length;
+    const totalNfts = (nfts.dbNfts?.length || 0) + (nfts.crossmintNfts?.length || 0);
 
     if (totalNfts === 0) {
       return (
@@ -258,7 +260,7 @@ const IssuerWallet = () => {
     return (
       <div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {nfts.dbNfts.map(nft => (
+          {nfts.dbNfts && nfts.dbNfts.map(nft => (
             <div key={nft.id} className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300`}>
               {nft.metadata?.image || nft.image_url ? (
                 <img 
@@ -301,7 +303,7 @@ const IssuerWallet = () => {
           ))}
           
           {/* Crossmint NFTs */}
-          {nfts.crossmintNfts.map(nft => (
+          {nfts.crossmintNfts && nfts.crossmintNfts.map(nft => (
             <div key={nft.id || nft.tokenId} className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300`}>
               {nft.image ? (
                 <img 
@@ -329,8 +331,8 @@ const IssuerWallet = () => {
                   {nft.description || `From Crossmint`}
                 </p>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {nft.mintedAt && (
-                    <p className="mb-1">Minted: {new Date(nft.mintedAt).toLocaleDateString()}</p>
+                  {nft.issuedDate && (
+                    <p className="mb-1">Issued: {new Date(nft.issuedDate).toLocaleDateString()}</p>
                   )}
                   {nft.contractAddress && (
                     <p className="mb-1 truncate">
